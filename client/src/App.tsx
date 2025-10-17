@@ -8,6 +8,7 @@ import { useIsMobile } from "./hooks/use-is-mobile";
 import Game from "./components/Game";
 import MainMenu from "./components/UI/MainMenu";
 import MobileControls from "./components/UI/MobileControls";
+import GameComplete from "./components/UI/GameComplete";
 import "@fontsource/inter";
 import "./index.css";
 
@@ -83,7 +84,7 @@ function App() {
       <div className="w-screen h-screen relative overflow-hidden bg-black">
         {gameState === 'menu' && <MainMenu />}
         
-        {gameState !== 'menu' && (
+        {(gameState === 'playing' || gameState === 'levelComplete') && (
           <KeyboardControls map={controls}>
             <Canvas
               shadows
@@ -109,6 +110,8 @@ function App() {
             {isMobile && <MobileControls />}
           </KeyboardControls>
         )}
+        
+        {gameState === 'gameComplete' && <GameComplete />}
       </div>
     </QueryClientProvider>
   );

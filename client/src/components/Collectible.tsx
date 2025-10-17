@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { usePlayer } from "../lib/stores/usePlayer";
@@ -11,31 +11,40 @@ interface CollectibleProps {
 
 export default function Collectible({ position, type, onCollect }: CollectibleProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
   const { position: playerPos } = usePlayer();
+  const collectedRef = useRef(false);
+  
+  // Pre-calculate random offset for floating animation
+  const randomOffset = useMemo(() => Math.random() * Math.PI * 2, []);
   
   // Different colors/shapes for different resource types
   const getResourceVisuals = (type: string) => {
     switch (type) {
       case 'metal':
-        return { color: "#9E9E9E", shape: 'box' };
+        return { color: "#9E9E9E", emissive: "#757575", shape: 'box' };
       case 'crystal':
-        return { color: "#9C27B0", shape: 'octahedron' };
+        return { color: "#9C27B0", emissive: "#7B1FA2", shape: 'octahedron' };
       case 'energy':
-        return { color: "#FFC107", shape: 'sphere' };
+        return { color: "#FFC107", emissive: "#FFA000", shape: 'sphere' };
       case 'bio':
-        return { color: "#4CAF50", shape: 'tetrahedron' };
+        return { color: "#4CAF50", emissive: "#388E3C", shape: 'tetrahedron' };
       default:
-        return { color: "#2196F3", shape: 'sphere' };
+        return { color: "#2196F3", emissive: "#1976D2", shape: 'sphere' };
     }
   };
   
-  const { color, shape } = getResourceVisuals(type);
+  const { color, emissive, shape } = useMemo(() => getResourceVisuals(type), [type]);
   
   // Animation and collection logic
   useFrame((state) => {
-    if (meshRef.current) {
+    if (collectedRef.current) return;
+    
+    if (meshRef.current && glowRef.current) {
       // Floating animation
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.3;
+      const floatHeight = position[1] + Math.sin(state.clock.elapsedTime * 2 + randomOffset) * 0.3;
+      meshRef.current.position.y = floatHeight;
+      glowRef.current.position.y = floatHeight;
       
       // Rotation animation
       meshRef.current.rotation.y += 0.02;
@@ -45,15 +54,26 @@ export default function Collectible({ position, type, onCollect }: CollectiblePr
       const playerDistance = new THREE.Vector3(...playerPos)
         .distanceTo(new THREE.Vector3(position[0], position[1], position[2]));
       
-      if (playerDistance < 2) {
+      if (playerDistance < 2 && !collectedRef.current) {
+        collectedRef.current = true;
         onCollect();
       }
       
-      // Pulse effect when player is nearby
+      // Pulse and scale effect when player is nearby
       if (playerDistance < 5) {
         const scale = 1 + Math.sin(state.clock.elapsedTime * 8) * 0.2;
         meshRef.current.scale.setScalar(scale);
+        
+        // Glow intensity increases when near
+        const glowScale = 2 + Math.sin(state.clock.elapsedTime * 6) * 0.5;
+        glowRef.current.scale.setScalar(glowScale);
+      } else {
+        meshRef.current.scale.setScalar(1);
+        glowRef.current.scale.setScalar(2);
       }
+      
+      // Rotate glow opposite direction
+      glowRef.current.rotation.y -= 0.01;
     }
   });
   
@@ -72,36 +92,61 @@ export default function Collectible({ position, type, onCollect }: CollectiblePr
 
   return (
     <group position={position}>
+      {/* Main collectible */}
       <mesh ref={meshRef} castShadow>
         {renderShape()}
         <meshStandardMaterial 
           color={color}
-          emissive={color}
-          emissiveIntensity={0.3}
-          metalness={0.5}
-          roughness={0.3}
+          emissive={emissive}
+          emissiveIntensity={0.5}
+          metalness={0.7}
+          roughness={0.2}
         />
       </mesh>
       
-      {/* Glow effect */}
-      <mesh position={[0, 0, 0]} scale={[2, 2, 2]}>
-        <sphereGeometry args={[0.5]} />
+      {/* Outer glow effect */}
+      <mesh ref={glowRef} position={[0, 0, 0]} scale={[2, 2, 2]}>
+        <sphereGeometry args={[0.5, 16, 16]} />
         <meshBasicMaterial 
           color={color}
           transparent
-          opacity={0.1}
+          opacity={0.15}
+          side={THREE.BackSide}
         />
       </mesh>
       
-      {/* Collection indicator particles */}
-      <mesh position={[0, 1, 0]}>
-        <sphereGeometry args={[0.1]} />
+      {/* Inner glow pulse */}
+      <mesh position={[0, 0, 0]} scale={[1.5, 1.5, 1.5]}>
+        <sphereGeometry args={[0.5, 12, 12]} />
         <meshBasicMaterial 
-          color={color}
+          color={emissive}
           transparent
-          opacity={0.8}
+          opacity={0.2}
         />
       </mesh>
+      
+      {/* Sparkle particles floating around */}
+      {[...Array(3)].map((_, i) => {
+        const angle = (i / 3) * Math.PI * 2 + randomOffset;
+        const radius = 1;
+        return (
+          <mesh 
+            key={i} 
+            position={[
+              Math.cos(angle) * radius,
+              Math.sin(Date.now() * 0.002 + i) * 0.3,
+              Math.sin(angle) * radius
+            ]}
+          >
+            <sphereGeometry args={[0.05]} />
+            <meshBasicMaterial 
+              color={color}
+              transparent
+              opacity={0.8}
+            />
+          </mesh>
+        );
+      })}
     </group>
   );
 }

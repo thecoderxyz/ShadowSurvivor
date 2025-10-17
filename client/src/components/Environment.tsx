@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -13,33 +13,42 @@ export default function Environment({ level, dayTime }: EnvironmentProps) {
   
   // Load textures based on level theme
   const groundTexture = useTexture(level.groundTexture || "/textures/grass.png");
+  
+  // Configure texture for better performance
+  useMemo(() => {
+    if (groundTexture) {
+      groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+      groundTexture.repeat.set(10, 10);
+      groundTexture.anisotropy = 4; // Reduced for performance
+    }
+  }, [groundTexture]);
+  
   const skyColor = level.skyColor || "#87CEEB";
   
   // Animate environment
   useFrame((state) => {
     if (groundRef.current) {
-      // Subtle ground animation
-      groundRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.1) * 0.01;
+      // Subtle ground animation - disabled for performance
+      // groundRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.1) * 0.01;
     }
   });
   
-  // Generate random obstacles/structures
-  const obstacles = [];
-  for (let i = 0; i < level.obstacleCount; i++) {
-    const x = (Math.random() - 0.5) * 80;
-    const z = (Math.random() - 0.5) * 80;
-    const height = 2 + Math.random() * 4;
-    
-    obstacles.push(
-      <mesh key={i} position={[x, height / 2, z]} castShadow receiveShadow>
-        <boxGeometry args={[2, height, 2]} />
-        <meshStandardMaterial 
-          color={level.obstacleColor || "#8D6E63"} 
-          map={groundTexture}
-        />
-      </mesh>
-    );
-  }
+  // Generate random obstacles/structures - pre-calculated for performance
+  const obstacles = useMemo(() => {
+    const obs = [];
+    for (let i = 0; i < level.obstacleCount; i++) {
+      const x = (Math.random() - 0.5) * 80;
+      const z = (Math.random() - 0.5) * 80;
+      const height = 2 + Math.random() * 4;
+      
+      obs.push({
+        id: i,
+        position: [x, height / 2, z] as [number, number, number],
+        height
+      });
+    }
+    return obs;
+  }, [level.obstacleCount, level.id]);
 
   return (
     <group>
@@ -61,19 +70,33 @@ export default function Environment({ level, dayTime }: EnvironmentProps) {
       </mesh>
       
       {/* Obstacles/Structures */}
-      {obstacles}
+      {obstacles.map(obstacle => (
+        <mesh 
+          key={obstacle.id} 
+          position={obstacle.position} 
+          castShadow 
+          receiveShadow
+        >
+          <boxGeometry args={[2, obstacle.height, 2]} />
+          <meshStandardMaterial 
+            color={level.obstacleColor || "#8D6E63"} 
+            roughness={0.8}
+            metalness={0.2}
+          />
+        </mesh>
+      ))}
       
-      {/* Environmental decorations */}
+      {/* Environmental decorations based on theme */}
       {level.theme === 'ruins' && (
         <>
           {/* Broken pillars */}
           <mesh position={[15, 3, 10]} castShadow>
-            <cylinderGeometry args={[1, 1, 6]} />
-            <meshStandardMaterial color="#666666" />
+            <cylinderGeometry args={[1, 1, 6, 8]} />
+            <meshStandardMaterial color="#666666" roughness={0.9} />
           </mesh>
           <mesh position={[-20, 2, -15]} castShadow>
-            <cylinderGeometry args={[0.8, 0.8, 4]} />
-            <meshStandardMaterial color="#555555" />
+            <cylinderGeometry args={[0.8, 0.8, 4, 8]} />
+            <meshStandardMaterial color="#555555" roughness={0.9} />
           </mesh>
         </>
       )}
@@ -82,19 +105,23 @@ export default function Environment({ level, dayTime }: EnvironmentProps) {
         <>
           {/* Alien crystals */}
           <mesh position={[10, 2, 5]} castShadow>
-            <octahedronGeometry args={[2]} />
+            <octahedronGeometry args={[2, 0]} />
             <meshStandardMaterial 
               color="#9C27B0" 
               emissive="#9C27B0" 
               emissiveIntensity={0.3}
+              roughness={0.3}
+              metalness={0.7}
             />
           </mesh>
           <mesh position={[-15, 3, -10]} castShadow>
-            <octahedronGeometry args={[3]} />
+            <octahedronGeometry args={[3, 0]} />
             <meshStandardMaterial 
               color="#E91E63" 
               emissive="#E91E63" 
               emissiveIntensity={0.2}
+              roughness={0.3}
+              metalness={0.7}
             />
           </mesh>
         </>
@@ -108,14 +135,28 @@ export default function Environment({ level, dayTime }: EnvironmentProps) {
             <meshStandardMaterial color="#455A64" metalness={0.8} roughness={0.2} />
           </mesh>
           <mesh position={[-12, 2, 12]} castShadow>
-            <cylinderGeometry args={[1.5, 1.5, 4]} />
+            <cylinderGeometry args={[1.5, 1.5, 4, 8]} />
             <meshStandardMaterial color="#37474F" metalness={0.9} roughness={0.1} />
           </mesh>
         </>
       )}
       
+      {level.theme === 'wasteland' && (
+        <>
+          {/* Dead trees */}
+          <mesh position={[12, 2, -8]} castShadow>
+            <cylinderGeometry args={[0.3, 0.4, 4, 6]} />
+            <meshStandardMaterial color="#3E2723" roughness={1} />
+          </mesh>
+          <mesh position={[-18, 1.5, 15]} castShadow>
+            <cylinderGeometry args={[0.2, 0.3, 3, 6]} />
+            <meshStandardMaterial color="#4E342E" roughness={1} />
+          </mesh>
+        </>
+      )}
+      
       {/* Atmospheric fog based on day/night */}
-      <fog attach="fog" args={[skyColor, 20, 100]} />
+      <fog attach="fog" args={[skyColor, 30, 100]} />
     </group>
   );
 }
