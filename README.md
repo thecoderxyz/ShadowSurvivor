@@ -13,8 +13,6 @@
 ## 📌 Author
 **Ranjit Nath**  
 📧 Email: [imranjitnath@gmail.com](mailto:imranjitnath@gmail.com)  
-🌐 GitHub: [yourusername](https://github.com/yourusername)  
-
 ---
 
 ## 🕹️ Features
